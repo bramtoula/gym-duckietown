@@ -1175,9 +1175,8 @@ class Simulator(gym.Env):
         # Get the position relative to the right lane tangent
         lp = self.get_lane_pos(pos, angle)
 
-
-        if (np.abs(wheelVels[0] - wheelVels[1])) < 0.15:
-            reward = -100
+        if (np.abs(wheelVels[0] - wheelVels[1])) > 0.08:
+            reward = -10
         else:
             reward = speed*(0.01*lp.dot_dir*lp.dot_dir + (30.-100.*np.abs(lp.dist+0.04)))
         # Compute the reward
