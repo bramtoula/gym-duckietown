@@ -1176,7 +1176,7 @@ class Simulator(gym.Env):
         lp = self.get_lane_pos(pos, angle)
 
 
-        if (np.abs(wheelVels[0] - wheel_vels[1])) < 0.15:
+        if (np.abs(wheelVels[0] - wheelVels[1])) < 0.15:
             reward = -100
         else:
             reward = speed*(0.01*lp.dot_dir*lp.dot_dir + (30.-100.*np.abs(lp.dist+0.04)))
