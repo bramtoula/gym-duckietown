@@ -40,7 +40,7 @@ if args.env_name is None:
 elif args.env_name == 'AIDO_sim':
     from gym_duckietown.simulator import Simulator
 
-    env = Simulator(
+    env = DuckietownEnv(
         seed=123, # random seed
         map_name="loop_empty",
         max_steps=500001, # we don't want the gym to reset itself
