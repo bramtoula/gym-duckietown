@@ -88,7 +88,7 @@ DEFAULT_FRAME_SKIP = 1
 
 DEFAULT_ACCEPT_START_ANGLE_DEG = 60
 
-REWARD_INVALID_POSE = -1000
+REWARD_INVALID_POSE = -100
 
 MAX_SPAWN_ATTEMPTS = 5000
 
@@ -291,9 +291,11 @@ class Simulator(gym.Env):
 
         # Used by the UndistortWrapper, always initialized to False
         self.undistort = False
-        
+
         # Start tile
         self.user_tile_start = user_tile_start
+
+        self.wheel_vels=[0.0,0.0]
 
         # Initialize the state
         self.reset()
@@ -536,7 +538,7 @@ class Simulator(gym.Env):
                 if drivable:
                     tile['curves'] = self._get_curve(i, j)
                     self.drivable_tiles.append(tile)
-                    
+
         self.mesh = ObjMesh.get('duckiebot')
         self._load_objects(self.map_data)
 
@@ -609,7 +611,7 @@ class Simulator(gym.Env):
                     obj = WorldObj(obj_desc, self.domain_rand, SAFETY_RAD_MULT)
             else:
                 if kind == "duckiebot":
-                    obj = DuckiebotObj(obj_desc, self.domain_rand, SAFETY_RAD_MULT, WHEEL_DIST, 
+                    obj = DuckiebotObj(obj_desc, self.domain_rand, SAFETY_RAD_MULT, WHEEL_DIST,
                             ROBOT_WIDTH, ROBOT_LENGTH)
                 elif kind == "duckie":
                     obj = DuckieObj(obj_desc, self.domain_rand, SAFETY_RAD_MULT, ROAD_TILE_SIZE)
@@ -885,7 +887,7 @@ class Simulator(gym.Env):
         # Rotate and align each curve with its place in global frame
         if kind.startswith('4way'):
             fourway_pts = []
-            # Generate all four sides' curves, 
+            # Generate all four sides' curves,
             # with 3-points template above
             for rot in np.arange(0, 4):
                 mat = gen_rot_matrix(np.array([0, 1, 0]), rot * math.pi / 2)
@@ -1115,6 +1117,7 @@ class Simulator(gym.Env):
 
     def update_physics(self, action):
         wheelVels = action * self.robot_speed * 1
+        self.wheel_vels = wheelVels
         prev_pos = self.cur_pos
 
         # Update the robot's position
@@ -1137,11 +1140,11 @@ class Simulator(gym.Env):
             if not obj.static and obj.kind == "duckiebot":
                 obj_i, obj_j = self.get_grid_coords(obj.pos)
                 same_tile_obj = [
-                    o for o in self.objects if 
+                    o for o in self.objects if
                     tuple(self.get_grid_coords(o.pos)) == (obj_i, obj_j) and o != obj
                 ]
 
-                obj.step(self.delta_time, self.closest_curve_point, same_tile_obj)    
+                obj.step(self.delta_time, self.closest_curve_point, same_tile_obj)
             else:
                 obj.step(self.delta_time)
 
@@ -1165,19 +1168,24 @@ class Simulator(gym.Env):
         misc['Simulator'] = info
         return misc
 
-    def compute_reward(self, pos, angle, speed):
+    def compute_reward(self, pos, angle, speed, wheelVels):
         # Compute the collision avoidance penalty
         col_penalty = self._proximity_penalty2(pos, angle)
 
         # Get the position relative to the right lane tangent
         lp = self.get_lane_pos(pos, angle)
 
+
+        if (np.abs(wheelVels[0] - wheel_vels[1])) < 0.15:
+            reward = -100
+        else:
+            reward = speed*(0.01*lp.dot_dir*lp.dot_dir + (30.-100.*np.abs(lp.dist+0.04)))
         # Compute the reward
-        reward = (
-                +1.0 * speed * lp.dot_dir +
-                -10 * np.abs(lp.dist) +
-                +40 * col_penalty
-        )
+        #reward = (
+        #        +1.0 * speed * lp.dot_dir +
+        #        -10 * np.abs(lp.dist) +
+        #        +40 * col_penalty
+        #)
         return reward
 
     def step(self, action):
@@ -1185,7 +1193,7 @@ class Simulator(gym.Env):
         action = np.array(action)
         for _ in range(self.frame_skip):
             self.update_physics(action)
-            
+
         # Generate the current camera image
         obs = self.render_obs()
         misc = self.get_agent_info()
@@ -1206,7 +1214,7 @@ class Simulator(gym.Env):
             reward = 0
         else:
             done = False
-            reward = self.compute_reward(self.cur_pos, self.cur_angle, self.robot_speed)
+            reward = self.compute_reward(self.cur_pos, self.cur_angle, self.robot_speed, self.wheel_vels)
 
         return obs, reward, done, misc
 
@@ -1352,7 +1360,7 @@ class Simulator(gym.Env):
                     pts = self._get_curve(i, j)
                     for idx, pt in enumerate(pts):
                         # Don't draw current curve in blue
-                        if idx == np.argmax(dot_prods): 
+                        if idx == np.argmax(dot_prods):
                             continue
                         bezier_draw(pt, n=20)
 
